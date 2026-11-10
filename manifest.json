@@ -2,8 +2,8 @@
   "manifest_version": 3,
   "name": "Baton – Dev & QA Toolkit",
   "short_name": "Baton",
-  "version": "0.5.0",
-  "description": "Dev & QA toolkit: deterministic record & replay with automatic bug minimization, API mocks, storage & cookies, JWT tools, screenshots, recordings and bug reports to Azure Boards.",
+  "version": "0.5.1",
+  "description": "Dev & QA toolkit: replay bugs exactly, mock APIs, flip storage flags, decode JWTs, screenshot and send bugs to Azure Boards.",
   "devtools_page": "devtools/devtools.html",
   "permissions": [
     "storage",
