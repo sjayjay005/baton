@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Baton</title>
+<link rel="stylesheet" href="panel.css">
+</head>
+<body data-mode="dev">
+<header class="topbar">
+  <div class="brand">
+    <img src="/icons/icon32.png" width="20" height="20" alt="">
+    <span class="wordmark">baton</span>
+  </div>
+  <nav class="tabs" role="tablist" aria-label="Baton tools" id="tabs"></nav>
+  <div class="grow"></div>
+  <div class="quick" role="group" aria-label="Capture">
+    <button type="button" class="btn quick-btn" id="quick-shot" title="Screenshot the page (opens the annotator)">📸 Screenshot</button>
+    <button type="button" class="btn quick-btn" id="quick-rec" title="Record the tab">⏺ Record</button>
+    <button type="button" class="btn quick-btn rec-live" id="quick-stop" hidden>■ <span id="rec-time">00:00</span></button>
+  </div>
+  <button type="button" class="btn ghost theme-btn" id="theme-btn" title="Theme">🖥️</button>
+  <label class="check" for="mask-toggle"><input type="checkbox" id="mask-toggle"> Mask secrets</label>
+  <div class="seg mode" role="radiogroup" aria-label="Mode">
+    <button type="button" role="radio" data-mode="dev" id="mode-dev">Dev</button>
+    <button type="button" role="radio" data-mode="qa" id="mode-qa">QA</button>
+  </div>
+</header>
+<main>
+  <section class="view" id="view-network" role="tabpanel" hidden></section>
+  <section class="view" id="view-storage" role="tabpanel" hidden></section>
+  <section class="view" id="view-console" role="tabpanel" hidden></section>
+  <section class="view" id="view-report" role="tabpanel" hidden></section>
+  <section class="view" id="view-mocks" role="tabpanel" hidden></section>
+  <section class="view" id="view-timeline" role="tabpanel" hidden></section>
+  <section class="view" id="view-replay" role="tabpanel" hidden></section>
+  <section class="view" id="view-tools" role="tabpanel" hidden></section>
+  <section class="view" id="view-links" role="tabpanel" hidden></section>
+  <section class="view" id="view-settings" role="tabpanel" hidden></section>
+</main>
+<script type="module" src="panel.js"></script>
+</body>
+</html>

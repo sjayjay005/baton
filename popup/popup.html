@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Baton</title>
+<link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="brand"><img src="/icons/icon48.png" width="24" height="24" alt=""><span>baton</span></div>
+  <input type="search" id="q" class="input" placeholder="Search links" aria-label="Search links">
+  <div id="links"></div>
+  <details class="help">
+    <summary>Where are the dev tools?</summary>
+    <ol>
+      <li>Open DevTools: <kbd id="shortcut">F12</kbd></li>
+      <li>Click the <strong>Baton</strong> tab. If it's hidden, open the <strong>»</strong> menu next to the other tabs.</li>
+      <li>Reload the page so Baton captures everything.</li>
+    </ol>
+  </details>
+  <script type="module" src="popup.js"></script>
+</body>
+</html>
