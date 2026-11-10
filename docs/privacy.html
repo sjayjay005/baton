@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Baton – Privacy Policy</title>
+<meta name="description" content="Privacy policy for the Baton Chrome extension: what it stores, where it stores it, and the only two services it ever contacts.">
+<link rel="icon" href="icon128.png">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="site-head">
+  <div class="wrap">
+    <a class="brand" href="./"><img src="icon128.png" alt="">Baton</a>
+    <nav class="site-nav">
+      <a href="./">Home</a>
+      <a href="privacy.html">Privacy</a>
+      <a href="support.html">Support</a>
+      <a href="https://github.com/sjayjay005/baton">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<div class="wrap narrow prose">
+
+  <h1>Privacy Policy</h1>
+  <p class="meta">Baton – Dev &amp; QA Toolkit · last updated 10 November 2026 (v0.5.1)</p>
+
+  <p>Baton is a Chrome extension that helps developers and QA engineers inspect, mock and replay what a web page does, and turn that into a bug report. This policy explains what Baton does with your data.</p>
+
+  <div class="note">
+    <p><strong>The short version:</strong> Baton has no accounts, no analytics, no advertising and no server of its own. Everything it records stays in your browser on your computer until you delete it or choose to export it.</p>
+  </div>
+
+  <h2>What Baton does not do</h2>
+  <ul>
+    <li>Baton does not collect, store, sell or share personal information.</li>
+    <li>Baton has no backend: there is nowhere for your data to be uploaded to.</li>
+    <li>Baton contains no analytics, telemetry, crash reporting or advertising code.</li>
+    <li>Baton does not track your browsing history or send your page content anywhere.</li>
+  </ul>
+
+  <h2>What Baton stores, and where</h2>
+  <p>All of it is local to your browser profile, in storage that belongs to this extension only:</p>
+  <div class="table-scroll">
+  <table class="plain">
+    <tr>
+      <th>Data</th>
+      <th>Where it lives</th>
+    </tr>
+    <tr>
+      <td>Settings, mock rules, team links, storage snapshots, saved console snippets, your Azure DevOps personal access token and your GIPHY API key</td>
+      <td><code>chrome.storage.local</code></td>
+    </tr>
+    <tr>
+      <td>Screenshots, screen recordings and GIFs you capture</td>
+      <td>IndexedDB, until you delete them</td>
+    </tr>
+    <tr>
+      <td>Captured requests, responses, console output, the timeline and recorded replay sessions</td>
+      <td>In the DevTools panel for the current session, plus any session you explicitly save or export</td>
+    </tr>
+  </table>
+  </div>
+  <p>Uninstalling Baton removes this data with it. Stored values are not encrypted, so on a shared machine use <strong>Forget PAT</strong> in Settings to clear your Azure token.</p>
+
+  <h2>Network connections</h2>
+  <p>Baton itself makes network requests to exactly two third-party services, and only when you ask it to:</p>
+  <ul>
+    <li><strong><code>dev.azure.com</code></strong> – when you connect Azure Boards or click <em>Create Bug</em>. Your personal access token, the bug report you wrote and any attachments you included are sent to your own Azure DevOps organisation, under Microsoft's handling of that service.</li>
+    <li><strong><code>api.giphy.com</code></strong> – when you search for a GIF. Your search term is sent to GIPHY under their privacy policy.</li>
+  </ul>
+  <p>Nothing else leaves your browser. Replaying a request sends it to that request's own server, exactly as the page would have.</p>
+
+  <h2>Page content and recordings</h2>
+  <p>To do its job, Baton observes the page you have DevTools open on: requests and their bodies, console output, storage and cookie changes, and your clicks, typing and navigation. This is processed in your browser and kept locally as described above.</p>
+  <p>Baton excludes password and secret input fields from recordings. With <strong>Mask secrets</strong> on, tokens in storage and auth cookies are redacted in anything you export, and auth headers in a Bruno export become variables you fill in yourself.</p>
+  <p>Exported files — <code>.baton.json</code>, <code>.baton-session.json</code>, Markdown reports, Bruno collections, screenshots and recordings — are written to your computer by you. Baton does not upload them. Be aware that an export can contain whatever the page showed, including data from your application, so share it the way you would share any other debugging artefact.</p>
+
+  <h2>Permissions, and why they are needed</h2>
+  <div class="table-scroll">
+  <table class="plain">
+    <tr><th>Permission</th><th>Used for</th></tr>
+    <tr><td>Access to all sites (<code>&lt;all_urls&gt;</code>)</td><td>Baton works on whatever page you are debugging: the page hook, screenshots via <code>captureVisibleTab</code> and request rules all need access to that tab.</td></tr>
+    <tr><td><code>declarativeNetRequest</code> (+ Feedback)</td><td>Redirect, host swap, header and block rules, and their hit counts.</td></tr>
+    <tr><td><code>scripting</code></td><td>Injecting CSS rules and running storage cyclers.</td></tr>
+    <tr><td><code>cookies</code></td><td>Reading and editing cookies, including HttpOnly ones.</td></tr>
+    <tr><td><code>userScripts</code></td><td>Your opt-in Inject JS rules.</td></tr>
+    <tr><td><code>storage</code>, <code>unlimitedStorage</code></td><td>Keeping your settings, rules and captured media locally.</td></tr>
+  </table>
+  </div>
+
+  <h2>Children</h2>
+  <p>Baton is a developer tool and is not directed at children under 13.</p>
+
+  <h2>Changes to this policy</h2>
+  <p>If this policy changes, the updated version will be published on this page with a new date. Material changes will also be noted in the repository's release notes.</p>
+
+  <h2>Contact</h2>
+  <p>Questions, concerns or a privacy problem to report: <a href="https://github.com/sjayjay005/baton/issues">open an issue on GitHub</a>, or see the <a href="support.html">support page</a> for other ways to get in touch.</p>
+
+</div>
+
+<footer>
+  <div class="wrap">
+    <span>Baton — Dev &amp; QA Toolkit</span>
+    <span class="links">
+      <a href="./">Home</a>
+      <a href="support.html">Support</a>
+      <a href="https://github.com/sjayjay005/baton">GitHub</a>
+    </span>
+  </div>
+</footer>
+
+</body>
+</html>

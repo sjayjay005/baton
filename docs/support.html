@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Baton – Support</title>
+<meta name="description" content="Support for the Baton Chrome extension: how to get help, report a bug, and fix the most common problems.">
+<link rel="icon" href="icon128.png">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="site-head">
+  <div class="wrap">
+    <a class="brand" href="./"><img src="icon128.png" alt="">Baton</a>
+    <nav class="site-nav">
+      <a href="./">Home</a>
+      <a href="privacy.html">Privacy</a>
+      <a href="support.html">Support</a>
+      <a href="https://github.com/sjayjay005/baton">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<div class="wrap narrow prose">
+
+  <h1>Support</h1>
+  <p class="meta">Baton – Dev &amp; QA Toolkit · v0.5.1</p>
+
+  <p>Baton is maintained on GitHub, and that is the fastest way to get help.</p>
+
+  <div class="note">
+    <p><strong>Report a bug or ask a question:</strong> <a href="https://github.com/sjayjay005/baton/issues/new">open an issue</a> on the repository. Including your Chrome version, the Baton version and what you expected to happen gets you an answer much faster — and if the bug is in a page you can share, a Baton session export is the perfect attachment.</p>
+  </div>
+
+  <ul>
+    <li><strong>Issues and feature requests:</strong> <a href="https://github.com/sjayjay005/baton/issues">github.com/sjayjay005/baton/issues</a></li>
+    <li><strong>Source, releases and the README:</strong> <a href="https://github.com/sjayjay005/baton">github.com/sjayjay005/baton</a></li>
+    <li><strong>Privacy questions:</strong> see the <a href="privacy.html">privacy policy</a>, then open an issue if anything is unclear.</li>
+  </ul>
+
+  <h2>Common problems</h2>
+
+  <h3>The Baton tab isn't in DevTools</h3>
+  <p>DevTools panels hide behind the <strong>»</strong> overflow menu when the window is narrow — look there first. If it is genuinely missing, close and reopen DevTools after loading the extension.</p>
+
+  <h3>The panel is empty, or requests aren't showing up</h3>
+  <p>Baton hooks into the page at load time, so reload the page once with DevTools open. Response bodies only exist for requests that were made while DevTools was open — a request from before you opened it can be listed without a body.</p>
+
+  <h3>A mock isn't taking effect</h3>
+  <p>Check that the rule is toggled on and that <strong>Pause all</strong> is off. Rules are ordered, and the topmost matching rule wins. Mocked <code>fetch</code> and <code>XMLHttpRequest</code> calls never reach the network, so they do not appear in the Network tab — look at <strong>Recent mock hits</strong> in Mocks, or the Timeline, to confirm a hit. Synchronous XHR is not mocked. Redirect, host-swap, header and block rules use Chrome's <code>declarativeNetRequest</code>, where regular expressions must be RE2-compatible.</p>
+
+  <h3>Inject JS rules do nothing</h3>
+  <p>They need user scripts to be allowed: open Baton's <strong>Details</strong> in <code>chrome://extensions</code> and turn on <strong>Allow user scripts</strong> (Chrome 138 and later; older versions rely on Developer mode).</p>
+
+  <h3>Replay doesn't reproduce the bug</h3>
+  <p>A session covers a single page load — a full navigation ends the recording, though SPA route changes are fine. Not captured: WebSockets, Web Workers, server-side state, synchronous XHR, and password or secret fields. If your app validates a token locally, export with <strong>Mask secrets</strong> off (and then share only inside your team).</p>
+
+  <h3>Azure Boards won't connect, or a bug won't file</h3>
+  <p>Check that the personal access token is still valid and has work-item write scope for the right organisation; re-paste it, or read it from your <code>.npmrc</code>, in Settings. Attachments over 60 MB are rejected by the upload.</p>
+
+  <h3>Screenshots only show part of the page</h3>
+  <p>That is expected: capture is limited to the visible viewport.</p>
+
+  <h2>Requirements</h2>
+  <p>Chrome 120 or later. Baton is a DevTools extension, so it does its work while DevTools is open on the tab you are debugging.</p>
+
+  <h2>Not supported yet</h2>
+  <p>Jira, GitHub, Linear and Slack integrations, AI summaries and hosted share links are planned rather than available. Requests and votes for them are welcome in the issue tracker.</p>
+
+</div>
+
+<footer>
+  <div class="wrap">
+    <span>Baton — Dev &amp; QA Toolkit</span>
+    <span class="links">
+      <a href="./">Home</a>
+      <a href="privacy.html">Privacy</a>
+      <a href="https://github.com/sjayjay005/baton/issues">Report an issue</a>
+    </span>
+  </div>
+</footer>
+
+</body>
+</html>

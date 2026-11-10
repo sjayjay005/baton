@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Baton – Dev &amp; QA Toolkit for Chrome</title>
+<meta name="description" content="One DevTools panel for devs and QAs: inspect, mock and replay requests, flip storage flags and cookies, decode JWTs, capture screenshots and a full timeline, and file bugs straight into Azure Boards.">
+<link rel="icon" href="icon128.png">
+<link rel="stylesheet" href="style.css">
+<meta property="og:title" content="Baton – Dev &amp; QA Toolkit for Chrome">
+<meta property="og:description" content="Replay bugs exactly, mock APIs, flip storage flags, decode JWTs, screenshot and file bugs to Azure Boards – all in one DevTools panel.">
+<meta property="og:type" content="website">
+<meta property="og:image" content="icon128.png">
+</head>
+<body>
+
+<header class="site-head">
+  <div class="wrap">
+    <a class="brand" href="./"><img src="icon128.png" alt="">Baton</a>
+    <nav class="site-nav">
+      <a href="#features">Features</a>
+      <a href="#install">Install</a>
+      <a href="privacy.html">Privacy</a>
+      <a href="support.html">Support</a>
+      <a href="https://github.com/sjayjay005/baton">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<div class="hero wrap">
+  <span class="pill">Chrome extension · v0.5.1</span>
+  <h1>Reproduce the bug.<br>Exactly.</h1>
+  <p class="lede">Baton is one DevTools panel for devs and QAs: inspect, mock and replay requests; flip storage flags and cookies; decode JWTs; capture screenshots, recordings and a full timeline; and file bugs straight into Azure Boards.</p>
+  <div class="cta">
+    <a class="btn btn-primary" href="https://github.com/sjayjay005/baton">Get Baton on GitHub</a>
+    <a class="btn btn-ghost" href="#install">How to install</a>
+  </div>
+</div>
+
+<section id="features" class="wrap">
+  <h2>Nine tabs, one panel</h2>
+  <p class="sub">Everything a bug report needs, in the place you are already working.</p>
+  <div class="grid">
+
+    <div class="card">
+      <span class="tag">Network</span>
+      <h3>Requests you can search and hand off</h3>
+      <p>Live requests with search across request and response bodies, method/status/domain filters and slow calls flagged in orange and red. Multi-select to copy cURL, copy for AI or export to Bruno. Per request: replay it editable from the page, mock it, or decode the JWT in its auth header.</p>
+    </div>
+
+    <div class="card">
+      <span class="tag">Mocks</span>
+      <h3>Change the response without a backend</h3>
+      <p>Mock responses (status, body, delay, GraphQL operation), delay, redirect, swap host, modify headers, block, inject CSS and inject JS. Toggle and reorder rules, pause all, watch hit counts, and export the set for your team.</p>
+    </div>
+
+    <div class="card">
+      <span class="tag">Storage</span>
+      <h3>Flags, cookies and a change history</h3>
+      <p>Booleans become switches, cyclers rotate a key through values on a keyboard shortcut, and cookies are editable down to every attribute (HttpOnly included). History shows every change with the code that made it, and a one-click rollback. Lock a key so the page can't touch it.</p>
+    </div>
+
+    <div class="card">
+      <span class="tag">Console</span>
+      <h3>Errors with stacks, and a scratchpad</h3>
+      <p>Errors and warnings with full stacks, plus a place to run code in the page (<code>await</code> works) and save the snippets you keep reaching for.</p>
+    </div>
+
+    <div class="card">
+      <span class="tag">Timeline</span>
+      <h3>One ordered story of the session</h3>
+      <p>Clicks, typing (passwords masked), selects, navigation, requests, errors, storage changes and mock hits in a single list. Instant replay of the last 30 seconds, minute or five minutes — and it writes your repro steps for you.</p>
+    </div>
+
+    <div class="card">
+      <span class="tag">Replay</span>
+      <h3>Deterministic record &amp; replay</h3>
+      <p>Record captures the starting storage and cookies, every fetch and XHR response, the clock, <code>Math.random</code>, crypto randomness and your input. Replay restores all of it so the bug happens again — even if the backend has moved on.</p>
+    </div>
+
+    <div class="card">
+      <span class="tag">Bug report</span>
+      <h3>From symptom to filed ticket</h3>
+      <p>Title, severity, steps, expected and actual, annotated screenshots, recordings that play in sync with the timeline, GIFs, failed requests, console errors and storage. Copy as Markdown, download it, or create the bug in Azure Boards.</p>
+    </div>
+
+    <div class="card">
+      <span class="tag">Tools</span>
+      <h3>JWT, Base64, URL and .npmrc</h3>
+      <p>Decode a JWT and read its claims and expiry, edit and re-sign it, or verify it with a secret. Encode and decode Base64 and URLs. Open your <code>.npmrc</code>, see the credentials in it, and rotate an Azure DevOps PAT everywhere in the file.</p>
+    </div>
+
+    <div class="card">
+      <span class="tag">Links &amp; Settings</span>
+      <h3>Team bookmarks and connections</h3>
+      <p>Shared team links, also in the toolbar popup. Connect Azure Boards with a PAT pasted in or read from your <code>.npmrc</code>, and add a GIPHY key for GIF capture.</p>
+    </div>
+
+  </div>
+</section>
+
+<section class="wrap">
+  <div class="spotlight">
+    <h2>The part that saves the afternoon</h2>
+    <p><strong>Deterministic replay.</strong> A recorded session pins down everything the page saw — the API responses, the clock, every source of randomness and each thing you clicked or typed. Press replay and the same bug happens again, on your machine, without the staging environment agreeing to cooperate.</p>
+    <p><strong>Minimize.</strong> Point Baton at an error and it runs delta debugging to find the fewest steps that still cause it, so the repro in your ticket is three lines instead of thirty.</p>
+    <p><strong>Hand it over.</strong> Export the session as a <code>.baton-session.json</code> file and attach it. A developer imports it and replays the QA's bug exactly as it happened.</p>
+  </div>
+</section>
+
+<section id="install" class="wrap">
+  <h2>Install</h2>
+  <p class="sub">Load Baton unpacked from the repository — it takes about a minute.</p>
+  <ol class="steps">
+    <li><strong>Download the extension.</strong> Grab the <a href="https://github.com/sjayjay005/baton">repository</a> as a ZIP and unzip it, or clone it with <code>git clone https://github.com/sjayjay005/baton.git</code>.</li>
+    <li><strong>Load it into Chrome.</strong> Open <code>chrome://extensions</code>, turn on <strong>Developer mode</strong>, click <strong>Load unpacked</strong> and pick the <code>baton</code> folder.</li>
+    <li><strong>Open the panel.</strong> Open DevTools (<kbd>F12</kbd> or <kbd>⌘⌥I</kbd>) and pick the <strong>Baton</strong> tab — check the <strong>»</strong> menu if it is hidden. Reload the page once so Baton hooks in from the start.</li>
+    <li><strong>Optional, for Inject JS rules.</strong> Open Baton's <strong>Details</strong> in <code>chrome://extensions</code> and turn on <strong>Allow user scripts</strong> (Chrome 138+; older versions use Developer mode).</li>
+  </ol>
+  <p style="color:var(--text-dim);font-size:14.5px;margin-top:22px">Requires Chrome 120 or later.</p>
+</section>
+
+<section class="wrap">
+  <h2>Your data stays in your browser</h2>
+  <p class="sub">No account, no analytics, no Baton server.</p>
+  <p style="color:var(--text-dim);max-width:720px">Baton talks to exactly two outside services, and only when you ask it to: <code>dev.azure.com</code> when you connect Azure Boards or create a bug, and <code>api.giphy.com</code> when you search for a GIF. Settings, rules, links, snapshots, screenshots and recordings are stored locally by the extension and never sent anywhere else. <a href="privacy.html">Read the full privacy policy</a>.</p>
+</section>
+
+<footer>
+  <div class="wrap">
+    <span>Baton — built for the people who have to prove the bug is real.</span>
+    <span class="links">
+      <a href="privacy.html">Privacy</a>
+      <a href="support.html">Support</a>
+      <a href="https://github.com/sjayjay005/baton">GitHub</a>
+      <a href="https://github.com/sjayjay005/baton/issues">Report an issue</a>
+    </span>
+  </div>
+</footer>
+
+</body>
+</html>
