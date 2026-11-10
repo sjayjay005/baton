@@ -1,4 +1,4 @@
-# Baton – Dev & QA Toolkit (v0.5.0)
+# Baton – Dev & QA Toolkit (v0.5.1)
 
 One DevTools panel for devs and QAs: inspect, mock and replay requests; flip storage flags and cookies; decode JWTs; capture screenshots, recordings and a full timeline; and file bugs straight into Azure Boards.
 
