@@ -2,6 +2,8 @@
 
 One DevTools panel for devs and QAs: inspect, mock and replay requests; flip storage flags and cookies; decode JWTs; capture screenshots, recordings and a full timeline; and file bugs straight into Azure Boards.
 
+**[Website](https://sjayjay005.github.io/baton/)** · **[Privacy policy](https://sjayjay005.github.io/baton/privacy.html)** · **[Support](https://sjayjay005.github.io/baton/support.html)**
+
 ## Install (unpacked)
 
 1. Unzip, open `chrome://extensions`, turn on **Developer mode**, click **Load unpacked** and pick the `baton` folder.

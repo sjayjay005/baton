@@ -4,6 +4,7 @@
   "short_name": "Baton",
   "version": "0.5.1",
   "description": "Dev & QA toolkit: replay bugs exactly, mock APIs, flip storage flags, decode JWTs, screenshot and send bugs to Azure Boards.",
+  "homepage_url": "https://sjayjay005.github.io/baton/",
   "devtools_page": "devtools/devtools.html",
   "permissions": [
     "storage",
