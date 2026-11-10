@@ -70,3 +70,4 @@ popup/, recorder/                toolbar popup (links), screen recorder window
 - Response bodies exist only for requests made while DevTools is open.
 - Azure attachments over 60 MB are blocked.
 - Not yet: Jira/GitHub/Linear/Slack, AI summaries, hosted share links (planned).
+# baton
