@@ -1,7 +1,7 @@
 // Tools: JWT decode / edit / sign, Base64 & URL encode-decode, Base64 → file,
 // and the .npmrc editor.
 // Works both inside DevTools and in the standalone tools page (no devtools APIs here).
-import { h, clear, copyText, toast, download, downloadBlob } from '../lib/dom.js';
+import { h, clear, copyText, toast, download, downloadBlob, accordion } from '../lib/dom.js';
 import { getStored, setStored, emit, on } from '../lib/settings.js';
 import { decodeJwt, signJwt, verifyHmac, findJwt } from '../lib/jwt.js';
 import { jwtDetails } from '../lib/jwtview.js';
@@ -9,10 +9,18 @@ import { utf8ToB64, bytesToB64, b64ToUtf8, b64ToBytes, looksBinary } from '../li
 import { sniff, sniffB64, b64Size } from '../lib/sniff.js';
 import { pick, findB64, fmtPath, parseJson } from '../lib/jsonpick.js';
 import { addMedia, stamp, fmtBytes } from '../lib/media.js';
+import { GENERATORS, NANO_ALPHABET, formatId, encodeId, decodeUuid, decodeUlid, describeNanoId, identify } from '../lib/ids.js';
 import { credentials, setToken, maskNpmrc, azureBlock } from '../lib/npmrc.js';
 
-const card = (title, ...kids) => h('section', { class: 'card stack' }, h('div', { class: 'section-head' }, h('h2', {}, title)), ...kids);
+// Every tool is a section you can collapse; what you hide stays hidden next time.
+const card = (id, title, ...kids) => {
+  const acc = accordion(`tools.${id}`, title, true);
+  clear(acc.body, ...kids);
+  acc.el.id = id;
+  return acc.el;
+};
 const area = (attrs) => h('textarea', { class: 'input mono', rows: 5, ...attrs });
+const kvRows = (pairs) => h('table', { class: 'kv' }, h('tbody', {}, pairs.filter(Boolean).map(([k, v]) => h('tr', {}, h('th', {}, k), h('td', {}, String(v))))));
 
 function jwtTool() {
   const input = area({ placeholder: 'Paste a JWT (or "Bearer eyJ…")', 'aria-label': 'JWT to decode' });
@@ -104,7 +112,7 @@ function jwtTool() {
     h('div', { class: 'row-form' }, h('button', { type: 'button', class: 'btn ghost', onclick: () => out.value && copyText(out.value) }, 'Copy signed token')),
     h('p', { class: 'muted small' }, 'Re-signing is for your own test environments. Everything happens locally; nothing is sent anywhere.'),
   );
-  return card('🔑 JWT', input, view, h('details', { class: 'sub' }, h('summary', {}, 'Edit & re-sign (HS256/384/512)'), editor));
+  return card('jwt', '🔑 JWT', input, view, h('details', { class: 'sub' }, h('summary', {}, 'Edit & re-sign (HS256/384/512)'), editor));
 }
 
 function b64Tool() {
@@ -149,6 +157,7 @@ function b64Tool() {
     file.value = '';
   });
   return card(
+    'base64',
     '🔤 Base64',
     input,
     h(
@@ -306,6 +315,7 @@ function fileTool() {
   };
 
   const el = card(
+    'b64file',
     '📄 Base64 → file',
     h('p', { class: 'muted small' }, 'Turn a Base64 blob into a PDF, PNG, MP3 or whatever it really is. Paste a whole JSON response and Baton finds the Base64 in it; narrow it down with a path if there are several.'),
     input,
@@ -352,6 +362,209 @@ function fileTool() {
   return el;
 }
 
+const ID_ENCODINGS = [
+  ['', 'No encoding'],
+  ['base64', 'Base 64'],
+  ['rfc7515', 'RFC 7515 (base64url)'],
+  ['url', 'URL encode'],
+];
+
+function idTool() {
+  const state = { kind: 'v4', count: 1, uppercase: false, hyphens: true, braces: false, quotes: false, commas: false, encoding: '', size: 21, alphabet: NANO_ALPHABET };
+  const out = area({ rows: 8, readonly: true, spellcheck: false, 'aria-label': 'Generated IDs' });
+  const note = h('div', { class: 'status-line' });
+  const kindRow = h('div', { class: 'row-form' });
+  const count = h('input', { class: 'input', type: 'number', min: 1, max: 1000, value: 1, 'aria-label': 'How many to generate' });
+  const sizeIn = h('input', { class: 'input', type: 'number', min: 1, max: 255, value: 21, 'aria-label': 'NanoID length' });
+  const alphaIn = h('input', { class: 'input mono', value: NANO_ALPHABET, 'aria-label': 'NanoID alphabet' });
+  const encSel = h('select', { class: 'input', 'aria-label': 'Encoding' }, ID_ENCODINGS.map(([v, l]) => h('option', { value: v }, l)));
+  const nanoRow = h('div', { class: 'row-form', hidden: true }, h('label', { class: 'field' }, h('span', {}, 'Length'), sizeIn), h('label', { class: 'field grow' }, h('span', {}, 'Alphabet'), alphaIn));
+
+  const check = (key, label, title) => {
+    const box = h('input', { type: 'checkbox', id: `id-${key}`, checked: state[key] });
+    box.addEventListener('change', () => {
+      state[key] = box.checked;
+      generate();
+    });
+    return h('label', { class: 'check', for: `id-${key}`, title }, box, label);
+  };
+  const hyphenLabel = check('hyphens', 'Hyphens', 'UUIDs only — ULIDs and NanoIDs have none');
+
+  const one = () => {
+    const raw = GENERATORS[state.kind].make({ size: state.size, alphabet: state.alphabet });
+    const text = formatId(raw, { uppercase: state.uppercase, hyphens: state.hyphens });
+    return formatId(encodeId(text, state.encoding), { braces: state.braces, quotes: state.quotes });
+  };
+
+  const generate = () => {
+    state.count = Math.min(1000, Math.max(1, Math.round(Number(count.value) || 1)));
+    count.value = state.count;
+    state.size = Math.min(255, Math.max(1, Math.round(Number(sizeIn.value) || 21)));
+    state.alphabet = alphaIn.value;
+    state.encoding = encSel.value;
+    const g = GENERATORS[state.kind];
+    try {
+      const ids = Array.from({ length: state.count }, one);
+      out.value = ids.join(state.commas ? ',\n' : '\n');
+      note.className = 'status-line ok';
+      note.textContent = `${ids.length} × ${g.label} · ${g.hint}`;
+    } catch (e) {
+      out.value = '';
+      note.className = 'status-line bad';
+      note.textContent = e.message;
+    }
+  };
+
+  const renderKinds = () =>
+    clear(
+      kindRow,
+      Object.entries(GENERATORS).map(([k, g]) =>
+        h(
+          'button',
+          {
+            type: 'button',
+            class: `chip${state.kind === k ? ' active' : ''}`,
+            title: g.hint,
+            onclick: () => {
+              state.kind = k;
+              renderKinds();
+              nanoRow.hidden = k !== 'nanoid';
+              hyphenLabel.classList.toggle('dim', k !== 'v4' && k !== 'v7');
+              generate();
+            },
+          },
+          g.label,
+        ),
+      ),
+    );
+  renderKinds();
+  for (const el of [count, sizeIn, alphaIn, encSel]) el.addEventListener('change', generate);
+  generate();
+
+  return card(
+    'ids',
+    '🆔 ID generator',
+    kindRow,
+    h('div', { class: 'row-form' }, h('label', { class: 'field' }, h('span', {}, 'How many (1–1000)'), count), h('label', { class: 'field grow' }, h('span', {}, 'Encoding'), encSel)),
+    nanoRow,
+    h('div', { class: 'row-form' }, hyphenLabel, check('braces', '{} Braces'), check('uppercase', 'Uppercase'), check('quotes', '" " Quotes'), check('commas', ', Commas')),
+    h(
+      'div',
+      { class: 'row-form' },
+      h('button', { type: 'button', class: 'btn primary', onclick: generate }, '🎲 Generate'),
+      h('button', { type: 'button', class: 'btn', onclick: () => out.value && copyText(out.value) }, 'Copy'),
+      h('button', { type: 'button', class: 'btn ghost', onclick: () => out.value && download(`${state.kind}-ids.txt`, out.value) }, 'Download .txt'),
+      h('button', { type: 'button', class: 'btn ghost', onclick: () => (out.value ? emit('id-decode', out.value.split('\n')[0].replace(/[",]/g, '')) : toast('Generate one first')) }, 'Decode the first →'),
+      note,
+    ),
+    out,
+    h('p', { class: 'muted small' }, 'v7 and ULID carry the time they were made, and a batch generated in the same millisecond still sorts in order. Base 64 encodes the 128 raw bits of a UUID or ULID (so 22–24 chars), and the text of a NanoID.'),
+  );
+}
+
+function idInspectTool() {
+  const input = area({ rows: 2, placeholder: 'Paste a UUID, ULID or NanoID', 'aria-label': 'ID to decode' });
+  const status = h('div', { class: 'status-line' });
+  const table = h('div', {});
+  const notesEl = h('div', { class: 'stack' });
+  let canonical = '';
+
+  const fail = (msg) => {
+    canonical = '';
+    status.className = 'status-line bad';
+    status.textContent = `❌ ${msg}`;
+    clear(table);
+    clear(notesEl);
+  };
+  const pass = (label, rows, notes = []) => {
+    status.className = 'status-line ok';
+    status.textContent = `✅ ${label}`;
+    clear(table, kvRows(rows));
+    clear(notesEl, notes.map((n) => h('p', { class: 'muted small' }, n)));
+  };
+
+  const decode = () => {
+    const raw = input.value.trim();
+    if (!raw) {
+      canonical = '';
+      status.className = 'status-line';
+      status.textContent = '';
+      clear(table);
+      clear(notesEl);
+      return;
+    }
+    const kind = identify(raw);
+    if (kind === 'ulid') {
+      const d = decodeUlid(raw);
+      if (!d.ok) return fail(d.error);
+      canonical = d.canonical;
+      return pass('Valid ULID', [
+        ['ULID', d.canonical],
+        ['Created', `${d.date} (${d.timestamp})`],
+        ['Randomness', d.randomness],
+        ['Same 128 bits as UUID', d.uuid],
+      ]);
+    }
+    if (kind === 'nanoid') {
+      const d = describeNanoId(raw);
+      if (!d.ok) return fail(d.error);
+      canonical = d.canonical;
+      return pass(
+        'Looks like a NanoID',
+        [
+          ['Length', `${d.length} characters${d.isDefaultLength ? ' (the default)' : ''}`],
+          ['Distinct characters', d.distinct],
+          ['Entropy', `~${d.bits} bits, assuming the standard 64-character alphabet`],
+        ],
+        ['A NanoID has no structure to read — no version and no timestamp — so this only checks the alphabet and reports its strength.'],
+      );
+    }
+    const d = decodeUuid(raw);
+    if (!d.ok) return fail(d.error);
+    canonical = d.canonical;
+    pass(
+      d.special || `Valid UUID ${d.versionLabel.split(' ')[0]}`,
+      [
+        ['UUID', d.canonical],
+        ['Version', d.versionLabel],
+        ['Variant', d.variantLabel],
+        d.date && ['Created', `${d.date} (${d.timestamp})`],
+        d.counter !== undefined && ['Sub-ms counter', d.counter],
+        d.clockSeq !== undefined && ['Clock sequence', d.clockSeq],
+        d.node && ['Node', `${d.node}${d.nodeIsRandom ? ' (random)' : ''}`],
+        d.localDomain && ['Local domain', d.localDomain],
+        d.localId !== undefined && ['Local id', d.localId],
+        ['Hex', d.hex],
+        ['Base 64', encodeId(d.canonical, 'base64')],
+      ],
+      d.notes,
+    );
+  };
+  input.addEventListener('input', decode);
+
+  const el = card(
+    'idcheck',
+    '🔍 ID decoder & validator',
+    input,
+    status,
+    table,
+    notesEl,
+    h(
+      'div',
+      { class: 'row-form' },
+      h('button', { type: 'button', class: 'btn ghost', onclick: () => (canonical ? copyText(canonical) : toast('Paste an ID first')) }, 'Copy canonical form'),
+      h('button', { type: 'button', class: 'btn ghost', onclick: () => ((input.value = ''), decode()) }, 'Clear'),
+    ),
+  );
+  on('id-decode', (value) => {
+    input.value = value;
+    decode();
+    el.open = true;
+    el.scrollIntoView({ block: 'nearest' });
+  });
+  return el;
+}
+
 function urlTool() {
   const input = area({ rows: 3, placeholder: 'https://example.com/search?q=hello world&tags=a,b', 'aria-label': 'URL tool input' });
   const output = area({ rows: 3, readonly: true, 'aria-label': 'URL tool output' });
@@ -373,6 +586,7 @@ function urlTool() {
     }
   };
   return card(
+    'url',
     '🔗 URL encode / decode',
     input,
     h(
@@ -517,6 +731,7 @@ function npmrcTool({ standalone }) {
 
   sync();
   return card(
+    'npmrc',
     '📦 .npmrc',
     h('p', { class: 'muted small' }, 'Open your user .npmrc (~/.npmrc, or %USERPROFILE%\\.npmrc on Windows) or a project one. Rotate an expired Azure DevOps PAT in one go, or add a feed. Secrets stay on this machine. On a Mac, press ⌘⇧. in the picker to show hidden files.'),
     h(
@@ -587,11 +802,19 @@ function npmrcTool({ standalone }) {
 }
 
 export function mountTools(container, { standalone = false } = {}) {
-  const npm = npmrcTool({ standalone });
-  npm.id = 'npmrc';
-  const b64file = fileTool();
-  b64file.id = 'b64file';
-  clear(container, h('div', { class: 'tools-grid' }, h('div', { class: 'stack' }, jwtTool(), b64Tool(), b64file, urlTool()), h('div', { class: 'stack' }, npm)));
-  const target = { '#npmrc': npm, '#b64file': b64file }[location.hash];
-  if (target) target.scrollIntoView();
+  clear(
+    container,
+    h(
+      'div',
+      { class: 'tools-grid' },
+      h('div', { class: 'stack' }, jwtTool(), b64Tool(), fileTool(), urlTool()),
+      h('div', { class: 'stack' }, idTool(), idInspectTool(), npmrcTool({ standalone })),
+    ),
+  );
+  // Each card() sets its own element id, so #npmrc or #ids in the URL jumps to it.
+  const target = location.hash && container.querySelector(location.hash);
+  if (target) {
+    target.open = true;
+    target.scrollIntoView();
+  }
 }

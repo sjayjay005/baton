@@ -499,6 +499,8 @@ body.page .view { position: static; }
 /* Tools */
 .tools-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; align-items: start; }
 .snap-item.current { border-color: var(--accent); }
+/* A toggle that has no effect on the current choice (hyphens on a ULID, say). */
+.check.dim { opacity: 0.45; }
 .b64-preview { display: flex; flex-direction: column; gap: 6px; }
 .b64-preview:empty { display: none; }
 .b64-img { max-width: 100%; max-height: 320px; object-fit: contain; align-self: flex-start; background: #05060d; border: 1px solid var(--line); border-radius: 8px; }

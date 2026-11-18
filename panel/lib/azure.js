@@ -107,6 +107,88 @@ export async function listWorkItemTypes(cfg, project) {
   return (json.value || []).filter((t) => !t.isDisabled).map((t) => t.name);
 }
 
+// Classification nodes come back as a tree whose `path` looks like
+// "\Project\Iteration\Release 1\Sprint 3", but System.IterationPath wants
+// "Project\Release 1\Sprint 3" — same story for areas.
+export function nodePathToFieldPath(path, kind) {
+  const parts = String(path || '')
+    .replace(/^\\/, '')
+    .split('\\');
+  const label = kind === 'areas' ? 'Area' : 'Iteration';
+  if (parts[1] === label) parts.splice(1, 1);
+  return parts.join('\\');
+}
+
+export function flattenNodes(root, kind, depth = 0, out = []) {
+  if (!root) return out;
+  out.push({
+    path: nodePathToFieldPath(root.path, kind),
+    name: root.name,
+    depth,
+    startDate: (root.attributes && root.attributes.startDate) || null,
+    finishDate: (root.attributes && root.attributes.finishDate) || null,
+  });
+  for (const child of root.children || []) flattenNodes(child, kind, depth + 1, out);
+  return out;
+}
+
+// kind: 'iterations' (sprints) | 'areas'
+export async function listClassificationNodes(cfg, project, kind = 'iterations') {
+  const json = await call(cfg, `${encodeURIComponent(project)}/_apis/wit/classificationnodes/${kind}?$depth=10&${API}`);
+  return flattenNodes(json, kind);
+}
+
+// The work item types a bug normally hangs off, intersected with whatever the
+// project's process actually offers.
+export const STORY_TYPES = ['User Story', 'Product Backlog Item', 'Requirement', 'Feature', 'Epic', 'Issue', 'Task'];
+
+const wiqlStr = (s) => `'${String(s).replace(/'/g, "''")}'`;
+
+export function buildStoryWiql({ types = [], iterationPath = '', search = '' } = {}) {
+  const where = ['[System.TeamProject] = @project', "[System.State] <> 'Removed'"];
+  if (types.length) where.push(`[System.WorkItemType] IN (${types.map(wiqlStr).join(', ')})`);
+  if (iterationPath) where.push(`[System.IterationPath] UNDER ${wiqlStr(iterationPath)}`);
+  if (search) where.push(`[System.Title] CONTAINS ${wiqlStr(search)}`);
+  return `SELECT [System.Id] FROM WorkItems WHERE ${where.join(' AND ')} ORDER BY [System.ChangedDate] DESC`;
+}
+
+// The stories a QA can hang a bug off, most recently changed first.
+export async function listStories(cfg, project, { types = [], iterationPath = '', search = '', top = 100 } = {}) {
+  const json = await call(cfg, `${encodeURIComponent(project)}/_apis/wit/wiql?$top=${top}&${API}`, {
+    method: 'POST',
+    body: JSON.stringify({ query: buildStoryWiql({ types, iterationPath, search }) }),
+    contentType: 'application/json',
+  });
+  const ids = (json.workItems || []).map((w) => w.id).slice(0, top);
+  if (!ids.length) return [];
+  const fields = ['System.Id', 'System.Title', 'System.WorkItemType', 'System.State', 'System.IterationPath'];
+  const detail = await call(cfg, `_apis/wit/workitems?ids=${ids.join(',')}&fields=${fields.join(',')}&${API}`);
+  const byId = new Map((detail.value || []).map((w) => [w.id, w]));
+  return ids
+    .map((id) => byId.get(id))
+    .filter(Boolean)
+    .map((w) => ({
+      id: w.id,
+      title: w.fields['System.Title'] || '(no title)',
+      type: w.fields['System.WorkItemType'] || '',
+      state: w.fields['System.State'] || '',
+      iterationPath: w.fields['System.IterationPath'] || '',
+    }));
+}
+
+// One work item by id, so a hand-typed parent can be confirmed before saving.
+export async function getWorkItem(cfg, id) {
+  const json = await call(cfg, `_apis/wit/workitems/${encodeURIComponent(id)}?fields=System.Id,System.Title,System.WorkItemType,System.State,System.IterationPath,System.TeamProject&${API}`);
+  return {
+    id: json.id,
+    title: json.fields['System.Title'] || '(no title)',
+    type: json.fields['System.WorkItemType'] || '',
+    state: json.fields['System.State'] || '',
+    iterationPath: json.fields['System.IterationPath'] || '',
+    project: json.fields['System.TeamProject'] || '',
+  };
+}
+
 export async function uploadAttachment(cfg, project, fileName, content) {
   const json = await call(cfg, `${encodeURIComponent(project)}/_apis/wit/attachments?fileName=${encodeURIComponent(fileName)}&${API}`, {
     method: 'POST',
@@ -118,7 +200,7 @@ export async function uploadAttachment(cfg, project, fileName, content) {
 
 export const SEVERITIES = ['1 - Critical', '2 - High', '3 - Medium', '4 - Low'];
 
-export function buildWorkItemPatch({ title, html, type, areaPath, iterationPath, tags, severity, attachmentUrls = [] }) {
+export function buildWorkItemPatch({ title, html, type, areaPath, iterationPath, tags, severity, attachmentUrls = [], org = '', parentId = null }) {
   const field = type === 'Bug' ? 'Microsoft.VSTS.TCM.ReproSteps' : 'System.Description';
   const ops = [
     { op: 'add', path: '/fields/System.Title', value: title.slice(0, 255) },
@@ -128,6 +210,10 @@ export function buildWorkItemPatch({ title, html, type, areaPath, iterationPath,
   if (iterationPath) ops.push({ op: 'add', path: '/fields/System.IterationPath', value: iterationPath });
   if (tags) ops.push({ op: 'add', path: '/fields/System.Tags', value: tags });
   if (severity && type === 'Bug') ops.push({ op: 'add', path: '/fields/Microsoft.VSTS.Common.Severity', value: severity });
+  // Hierarchy-Reverse points at the parent, so the new bug shows up under the story.
+  if (parentId && org) {
+    ops.push({ op: 'add', path: '/relations/-', value: { rel: 'System.LinkTypes.Hierarchy-Reverse', url: `https://dev.azure.com/${encodeURIComponent(org)}/_apis/wit/workItems/${parentId}` } });
+  }
   for (const a of attachmentUrls) {
     ops.push({ op: 'add', path: '/relations/-', value: { rel: 'AttachedFile', url: a.url, attributes: { comment: a.comment || 'Added by Baton' } } });
   }
@@ -149,7 +235,7 @@ export async function createWorkItem(cfg, { title, html, files = [], severity = 
   const send = (sev) =>
     call(cfg, `${encodeURIComponent(project)}/_apis/wit/workitems/$${encodeURIComponent(type)}?${API}`, {
       method: 'POST',
-      body: JSON.stringify(buildWorkItemPatch({ title, html: fullHtml, type, areaPath: cfg.areaPath, iterationPath: cfg.iterationPath, tags: cfg.tags, severity: sev, attachmentUrls })),
+      body: JSON.stringify(buildWorkItemPatch({ title, html: fullHtml, type, areaPath: cfg.areaPath, iterationPath: cfg.iterationPath, tags: cfg.tags, severity: sev, attachmentUrls, org: cfg.org, parentId: cfg.parentId })),
       contentType: 'application/json-patch+json',
     });
   let json;
