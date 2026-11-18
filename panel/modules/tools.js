@@ -1,10 +1,14 @@
-// Tools: JWT decode / edit / sign, Base64 & URL encode-decode, and the .npmrc editor.
+// Tools: JWT decode / edit / sign, Base64 & URL encode-decode, Base64 → file,
+// and the .npmrc editor.
 // Works both inside DevTools and in the standalone tools page (no devtools APIs here).
-import { h, clear, copyText, toast, download } from '../lib/dom.js';
-import { getStored, setStored, emit } from '../lib/settings.js';
+import { h, clear, copyText, toast, download, downloadBlob } from '../lib/dom.js';
+import { getStored, setStored, emit, on } from '../lib/settings.js';
 import { decodeJwt, signJwt, verifyHmac, findJwt } from '../lib/jwt.js';
 import { jwtDetails } from '../lib/jwtview.js';
-import { utf8ToB64, b64ToUtf8, b64ToBytes, looksBinary } from '../lib/b64.js';
+import { utf8ToB64, bytesToB64, b64ToUtf8, b64ToBytes, looksBinary } from '../lib/b64.js';
+import { sniff, sniffB64, b64Size } from '../lib/sniff.js';
+import { pick, findB64, fmtPath, parseJson } from '../lib/jsonpick.js';
+import { addMedia, stamp, fmtBytes } from '../lib/media.js';
 import { credentials, setToken, maskNpmrc, azureBlock } from '../lib/npmrc.js';
 
 const card = (title, ...kids) => h('section', { class: 'card stack' }, h('div', { class: 'section-head' }, h('h2', {}, title)), ...kids);
@@ -161,6 +165,191 @@ function b64Tool() {
     ),
     output,
   );
+}
+
+// The three conversions people ask for by name, plus whatever the bytes say they are.
+const FORMATS = [
+  { label: '📄 PDF', mime: 'application/pdf', ext: 'pdf' },
+  { label: '🖼️ PNG', mime: 'image/png', ext: 'png' },
+  { label: '🎵 MP3', mime: 'audio/mpeg', ext: 'mp3' },
+];
+
+const WHOLE = '(whole payload)';
+const parentOf = (root, path) => path.slice(0, -1).reduce((n, k) => (n == null ? n : n[k]), root);
+
+// A sibling key like fileName / name / attachmentName often carries the real filename.
+function nameHint(root, path) {
+  const parent = parentOf(root, path);
+  if (!parent || typeof parent !== 'object') return '';
+  const hit = Object.entries(parent).find(([k, v]) => typeof v === 'string' && /name/i.test(k) && /^[^/\\]{1,120}\.[a-z0-9]{2,5}$/i.test(v.trim()));
+  return hit ? hit[1].trim() : '';
+}
+
+function fileTool() {
+  let bytes = null;
+  let type = null;
+  let hint = '';
+  let url = null;
+  let active = null;
+
+  const input = area({ rows: 6, placeholder: 'Paste Base64, a data: URL, or a whole JSON response payload', 'aria-label': 'Base64 or JSON payload' });
+  const pattern = h('input', { class: 'input mono', placeholder: '**.content · data.*.fileB64 · *b64* · attachments[0].body', 'aria-label': 'JSON path' });
+  const hitsEl = h('div', { class: 'stack' });
+  const status = h('div', { class: 'status-line' });
+  const note = h('div', { class: 'status-line bad' });
+  const preview = h('div', { class: 'b64-preview' });
+
+  const setStatus = (text, ok = true) => {
+    status.textContent = text;
+    status.classList.toggle('ok', ok);
+    status.classList.toggle('bad', !ok);
+  };
+
+  const fileName = (ext) => {
+    const base = hint.replace(/\.[^.]+$/, '');
+    if (!base) return `baton-${stamp()}.${ext}`;
+    return hint.toLowerCase().endsWith(`.${ext}`) ? hint : `${base}.${ext}`;
+  };
+
+  const showPreview = () => {
+    if (url) URL.revokeObjectURL(url);
+    url = null;
+    if (!bytes) return clear(preview);
+    if (type.kind === 'text') {
+      const text = new TextDecoder('utf-8', { fatal: false }).decode(bytes.subarray(0, 8192));
+      return clear(preview, h('pre', { class: 'code' }, text + (bytes.length > 8192 ? '\n…' : '')));
+    }
+    if (type.kind === 'binary' || type.kind === 'empty') {
+      const hex = [...bytes.subarray(0, 64)].map((b) => b.toString(16).padStart(2, '0')).join(' ');
+      return clear(preview, h('p', { class: 'muted small' }, 'No preview for this type. First bytes:'), h('pre', { class: 'code' }, hex));
+    }
+    url = URL.createObjectURL(new Blob([bytes], { type: type.mime }));
+    if (type.kind === 'image') return clear(preview, h('img', { src: url, class: 'b64-img', alt: 'Decoded image' }));
+    if (type.kind === 'audio') return clear(preview, h('audio', { src: url, controls: true, class: 'b64-audio' }));
+    if (type.kind === 'video') return clear(preview, h('video', { src: url, controls: true, class: 'b64-video' }));
+    clear(
+      preview,
+      h('iframe', { src: url, class: 'b64-pdf', title: 'Decoded PDF' }),
+      h('p', { class: 'muted small' }, 'If the preview stays blank, DevTools is blocking the PDF viewer — save the file and open it instead.'),
+    );
+  };
+
+  const load = (b64, { path = null, root = null } = {}) => {
+    note.textContent = '';
+    try {
+      bytes = b64ToBytes(b64);
+    } catch (e) {
+      bytes = null;
+      type = null;
+      showPreview();
+      return setStatus(e.message, false);
+    }
+    type = sniff(bytes);
+    hint = path && root ? nameHint(root, path) : '';
+    active = path ? fmtPath(path) || WHOLE : null;
+    setStatus(`${type.label} · ${fmtBytes(bytes.length)}${active ? ` · from ${active}` : ''}${hint ? ` · ${hint}` : ''}`, type.kind !== 'empty');
+    showPreview();
+    renderHits();
+  };
+
+  let candidates = [];
+  let payload = null;
+
+  const renderHits = () => {
+    clear(
+      hitsEl,
+      candidates.map((c) => {
+        const label = fmtPath(c.path) || WHOLE;
+        return h(
+          'div',
+          { class: `snap-item${label === active ? ' current' : ''}` },
+          h('div', { class: 'toggle-text' }, h('strong', {}, c.type ? c.type.label : 'Not decodable'), h('code', {}, `${label} · ${fmtBytes(c.size)}`)),
+          h('button', { type: 'button', class: label === active ? 'btn primary' : 'btn ghost', onclick: () => load(c.value, { path: c.path, root: payload }) }, label === active ? 'Loaded' : 'Use'),
+        );
+      }),
+    );
+  };
+
+  const annotate = (hits) => hits.filter((x) => typeof x.value === 'string').map((x) => ({ ...x, type: sniffB64(x.value), size: b64Size(x.value) }));
+  const knownFirst = (a, b) => Number(!!b.type && !['binary', 'empty'].includes(b.type.kind)) - Number(!!a.type && !['binary', 'empty'].includes(a.type.kind)) || b.size - a.size;
+
+  const run = () => {
+    const raw = input.value.trim();
+    candidates = [];
+    payload = null;
+    active = null;
+    clear(hitsEl);
+    if (!raw) return setStatus('Paste something first', false);
+
+    payload = parseJson(raw);
+    if (!payload) return load(raw); // a plain Base64 string or data: URL
+
+    const path = pattern.value.trim();
+    const hits = path ? pick(payload, path) : findB64(payload);
+    candidates = annotate(hits);
+    if (!path) candidates.sort(knownFirst);
+    if (!candidates.length) {
+      bytes = null;
+      showPreview();
+      return setStatus(path ? (hits.length ? `${path} matched ${hits.length} value(s), but none were strings` : `Nothing in the payload matches ${path}`) : 'No Base64-looking strings in that payload — try a path like **.content', false);
+    }
+    const best = candidates[0];
+    load(best.value, { path: best.path, root: payload });
+  };
+
+  const saveAs = (fmt) => {
+    if (!bytes) return toast('Load something first');
+    const f = fmt || type;
+    note.textContent = fmt && type.mime !== fmt.mime && !['binary', 'empty'].includes(type.kind) ? `Saved as .${fmt.ext}, but these bytes look like ${type.label}.` : '';
+    downloadBlob(fileName(f.ext), new Blob([bytes], { type: f.mime }));
+    toast(`💾 Saved as .${f.ext}`);
+  };
+
+  const el = card(
+    '📄 Base64 → file',
+    h('p', { class: 'muted small' }, 'Turn a Base64 blob into a PDF, PNG, MP3 or whatever it really is. Paste a whole JSON response and Baton finds the Base64 in it; narrow it down with a path if there are several.'),
+    input,
+    h('div', { class: 'row-form' }, pattern, h('button', { type: 'button', class: 'btn primary', onclick: run }, 'Find & decode →'), h('button', { type: 'button', class: 'btn ghost', onclick: () => ((pattern.value = ''), run()) }, '🔎 Find any')),
+    status,
+    hitsEl,
+    h(
+      'div',
+      { class: 'row-form' },
+      FORMATS.map((f) => h('button', { type: 'button', class: 'btn', onclick: () => saveAs(f) }, `Save ${f.label}`)),
+      h('button', { type: 'button', class: 'btn primary', onclick: () => saveAs(null) }, '💾 Save as detected'),
+    ),
+    note,
+    h(
+      'div',
+      { class: 'row-form' },
+      h(
+        'button',
+        {
+          type: 'button',
+          class: 'btn ghost',
+          onclick: async () => {
+            if (!bytes) return toast('Load something first');
+            const name = fileName(type.ext);
+            await addMedia({ kind: type.kind === 'image' ? 'image' : 'file', name, mime: type.mime, blob: new Blob([bytes], { type: type.mime }), size: bytes.length });
+            toast(`📎 ${name} added to the report`);
+          },
+        },
+        '📎 Add to report',
+      ),
+      h('button', { type: 'button', class: 'btn ghost', onclick: () => (bytes ? copyText(`data:${type.mime};base64,${bytesToB64(bytes)}`) : toast('Load something first')) }, 'Copy data URL'),
+    ),
+    preview,
+  );
+
+  // Hand-off from a network response: Network → “📄 Base64 → file”.
+  on('b64-payload', (text) => {
+    input.value = text;
+    pattern.value = '';
+    run();
+    el.scrollIntoView({ block: 'nearest' });
+  });
+
+  return el;
 }
 
 function urlTool() {
@@ -400,6 +589,9 @@ function npmrcTool({ standalone }) {
 export function mountTools(container, { standalone = false } = {}) {
   const npm = npmrcTool({ standalone });
   npm.id = 'npmrc';
-  clear(container, h('div', { class: 'tools-grid' }, h('div', { class: 'stack' }, jwtTool(), b64Tool(), urlTool()), h('div', { class: 'stack' }, npm)));
-  if (location.hash === '#npmrc') npm.scrollIntoView();
+  const b64file = fileTool();
+  b64file.id = 'b64file';
+  clear(container, h('div', { class: 'tools-grid' }, h('div', { class: 'stack' }, jwtTool(), b64Tool(), b64file, urlTool()), h('div', { class: 'stack' }, npm)));
+  const target = { '#npmrc': npm, '#b64file': b64file }[location.hash];
+  if (target) target.scrollIntoView();
 }

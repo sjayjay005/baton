@@ -1,10 +1,13 @@
 // UTF-8 safe Base64 / Base64URL helpers.
-export function utf8ToB64(text, { url = false } = {}) {
-  const bytes = new TextEncoder().encode(String(text));
+export function bytesToB64(bytes, { url = false } = {}) {
   let bin = '';
   for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
   const b64 = btoa(bin);
   return url ? b64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '') : b64;
+}
+
+export function utf8ToB64(text, opts) {
+  return bytesToB64(new TextEncoder().encode(String(text)), opts);
 }
 
 export function b64ToBytes(input) {

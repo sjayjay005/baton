@@ -326,6 +326,20 @@ async function renderDetail() {
         {
           type: 'button',
           class: 'btn',
+          onclick: async () => {
+            const text = await item.body();
+            if (text == null) return toast('No response body captured for this request');
+            emit('b64-payload', text);
+            emit('goto', 'tools');
+          },
+        },
+        '📄 Base64 → file',
+      ),
+      h(
+        'button',
+        {
+          type: 'button',
+          class: 'btn',
           onclick: () => {
             if (shared.pinned.has(item.id)) shared.pinned.delete(item.id);
             else shared.pinned.add(item.id);
