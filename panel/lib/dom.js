@@ -68,7 +68,12 @@ export function toast(msg) {
 }
 
 export function download(filename, text, type = 'text/plain') {
-  const url = URL.createObjectURL(new Blob([text], { type }));
+  downloadBlob(filename, new Blob([text], { type }));
+}
+
+// For bytes rather than text: decoded Base64, canvases, recordings.
+export function downloadBlob(filename, blob) {
+  const url = URL.createObjectURL(blob);
   const a = h('a', { href: url, download: filename });
   document.body.append(a);
   a.click();
