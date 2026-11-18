@@ -10,7 +10,7 @@ import { mediaSection, includedMedia, initMedia } from './media.js';
 import { timelineItems, reproSteps } from './timeline.js';
 import { timelineText } from '../lib/timeline.js';
 
-let root, previewEl, summaryEl, azureBtn, azureStatus, mediaAcc;
+let root, previewEl, summaryEl, azureBtn, azureStatus, azureTarget, mediaAcc;
 let azureCfg = null;
 const form = { title: '', severity: '', steps: '', expected: '', actual: '' };
 const include = { requests: true, console: true, storage: true, env: true, timeline: true };
@@ -123,6 +123,12 @@ function renderAzureButton() {
   const ready = azureCfg && isAzureReady(azureCfg);
   azureBtn.textContent = ready ? `🚀 Create ${azureCfg.type || 'Bug'} in Azure Boards` : 'Connect Azure Boards…';
   azureBtn.title = ready ? `${azureCfg.org} / ${azureCfg.project}` : 'Set up the connection in Settings';
+  // Say where this is about to land, so nobody files a sprint's worth of bugs
+  // onto the wrong story.
+  if (!azureTarget) return;
+  const bits = ready ? [azureCfg.project, azureCfg.iterationPath, azureCfg.parentId ? `under #${azureCfg.parentId}${azureCfg.parentTitle ? ` ${azureCfg.parentTitle}` : ''}` : null].filter(Boolean) : [];
+  azureTarget.textContent = bits.length ? `→ ${bits.join(' · ')}` : '';
+  azureTarget.title = ready && azureCfg.parentId ? 'Change the sprint or story in Settings' : 'Pick a sprint and story in Settings';
 }
 
 async function sendToAzure() {
@@ -162,6 +168,7 @@ export function mountReport(container) {
   summaryEl = h('div', { class: 'includes' });
   azureBtn = h('button', { type: 'button', class: 'btn azure', onclick: sendToAzure }, 'Connect Azure Boards…');
   azureStatus = h('div', { class: 'status-line', role: 'status' });
+  azureTarget = h('span', { class: 'muted small' });
 
   const fields = {};
   const field = (key, label, multiline, placeholder) => {
@@ -275,7 +282,7 @@ export function mountReport(container) {
               'Download bundle .json',
             ),
           ),
-          h('div', { class: 'row-form' }, azureBtn),
+          h('div', { class: 'row-form' }, azureBtn, azureTarget),
           azureStatus,
         ),
       ),
