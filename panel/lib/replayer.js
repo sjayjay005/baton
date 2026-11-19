@@ -6,15 +6,42 @@ import { replayBoot } from './sessions.js';
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const send = (msg) => new Promise((resolve) => chrome.runtime.sendMessage(msg, (r) => resolve(r || { ok: false, error: chrome.runtime.lastError?.message })));
 
-async function waitForLoad(origin, timeout = 30000) {
+// `bootConsumed` also waits for the hook to have eaten the boot note, which is
+// the only proof the document really reloaded rather than the browser quietly
+// doing a same-document navigation.
+async function waitForLoad(origin, { bootConsumed = false, timeout = 30000 } = {}) {
   const until = Date.now() + timeout;
   await sleep(300);
+  const check = `(() => {
+    if (location.origin !== ${JSON.stringify(origin)}) return false;
+    if (document.readyState === 'loading') return false;
+    if (!window.__baton) return false;
+    if (!${bootConsumed}) return true;
+    try { return !sessionStorage.getItem('__baton_boot'); } catch { return true; }
+  })()`;
   while (Date.now() < until) {
-    const ok = await evalInPage(`location.origin === ${JSON.stringify(origin)} && document.readyState !== 'loading' && !!window.__baton`).catch(() => false);
-    if (ok) return true;
+    if (await evalInPage(check).catch(() => false)) return true;
     await sleep(200);
   }
-  throw new Error('The page didn’t load in time');
+  throw new Error(bootConsumed ? 'The page didn’t reload, so there was nothing to record. Reload it yourself with DevTools open, then try again.' : 'The page didn’t load in time');
+}
+
+// location.replace() to a URL that differs from the current one only by its
+// #fragment is a *same-document* navigation: nothing reloads, so the page hook
+// never re-runs and the recording never starts. Force a real load in that case.
+async function goTo(url) {
+  const here = await evalInPage('location.href').catch(() => null);
+  // The browser only skips the reload when the target carries a fragment and
+  // everything before it is unchanged. Anything else really does navigate, and
+  // replace() is kinder there (reload() re-POSTs a form-submitted page).
+  const sameDocument = here && url.includes('#') && here.split('#')[0] === url.split('#')[0];
+  if (!sameDocument) {
+    await evalInPage(`location.replace(${JSON.stringify(url)})`).catch(() => {});
+    return;
+  }
+  if (here !== url) await evalInPage(`location.href = ${JSON.stringify(url)}`).catch(() => {});
+  if (chrome.devtools && chrome.devtools.inspectedWindow && chrome.devtools.inspectedWindow.reload) chrome.devtools.inspectedWindow.reload();
+  else await evalInPage('location.reload()').catch(() => {});
 }
 
 // Leaves a boot note for the next document load, then navigates to `url`.
@@ -25,13 +52,15 @@ async function bootAndGo(boot, url) {
     await evalInPage(`location.href = ${JSON.stringify(url)}`).catch(() => {});
     await waitForLoad(origin);
   }
+  // Written on its own, before navigating: a replace() in the same eval can cut
+  // the evaluation short.
   await evalInPage(`(() => {
     window.__batonBypass = true;
     try { sessionStorage.setItem('__baton_boot', ${JSON.stringify(JSON.stringify(boot))}); } finally { window.__batonBypass = false; }
-    location.replace(${JSON.stringify(url)});
     return true;
   })()`);
-  await waitForLoad(origin);
+  await goTo(url);
+  await waitForLoad(origin, { bootConsumed: true });
 }
 
 export async function startRecording() {
