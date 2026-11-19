@@ -6,25 +6,31 @@ import { replayBoot } from './sessions.js';
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const send = (msg) => new Promise((resolve) => chrome.runtime.sendMessage(msg, (r) => resolve(r || { ok: false, error: chrome.runtime.lastError?.message })));
 
-// `bootConsumed` also waits for the hook to have eaten the boot note, which is
-// the only proof the document really reloaded rather than the browser quietly
-// doing a same-document navigation.
-async function waitForLoad(origin, { bootConsumed = false, timeout = 30000 } = {}) {
+// `armed` is an expression proving the hook booted for *this* session. Without
+// it, window.__baton left over from the previous document looks like success,
+// which is how a navigation that never happened used to pass unnoticed.
+async function waitForLoad(origin, { armed = '', timeout = 30000 } = {}) {
   const until = Date.now() + timeout;
   await sleep(300);
   const check = `(() => {
     if (location.origin !== ${JSON.stringify(origin)}) return false;
     if (document.readyState === 'loading') return false;
     if (!window.__baton) return false;
-    if (!${bootConsumed}) return true;
-    try { return !sessionStorage.getItem('__baton_boot'); } catch { return true; }
+    return ${armed || 'true'};
   })()`;
   while (Date.now() < until) {
     if (await evalInPage(check).catch(() => false)) return true;
     await sleep(200);
   }
-  throw new Error(bootConsumed ? 'The page didn’t reload, so there was nothing to record. Reload it yourself with DevTools open, then try again.' : 'The page didn’t load in time');
+  throw new Error(armed ? 'The page didn’t reload, so there was nothing to record. Reload it yourself with DevTools open, then try again.' : 'The page didn’t load in time');
 }
+
+// What proves the hook is live for this boot: the recording (or replay run) it
+// was supposed to start actually exists in the page.
+const armedCheck = (boot) =>
+  boot.mode === 'record'
+    ? `!!(window.__baton.rec && window.__baton.rec.id === ${JSON.stringify(boot.id)})`
+    : `!!(window.__baton.replay && window.__baton.replay.runId === ${JSON.stringify(boot.runId)})`;
 
 // location.replace() to a URL that differs from the current one only by its
 // #fragment is a *same-document* navigation: nothing reloads, so the page hook
@@ -60,7 +66,7 @@ async function bootAndGo(boot, url) {
     return true;
   })()`);
   await goTo(url);
-  await waitForLoad(origin, { bootConsumed: true });
+  await waitForLoad(origin, { armed: armedCheck(boot) });
 }
 
 export async function startRecording() {
@@ -69,7 +75,8 @@ export async function startRecording() {
   const id = crypto.randomUUID();
   const seed = crypto.getRandomValues(new Uint32Array(1))[0];
   const ck = await send({ type: 'cookies-get', url });
-  await bootAndGo({ mode: 'record', id, seed }, url);
+  // armedAt lets the hook expire a recording nobody ever stopped.
+  await bootAndGo({ mode: 'record', id, seed, armedAt: Date.now() }, url);
   return { id, seed, url, cookies: ck.ok ? ck.cookies : [] };
 }
 
@@ -81,16 +88,43 @@ export async function recordingStatus() {
   })()`).catch(() => null);
 }
 
-// Returns the raw recording (or the rescued one if the page navigated away).
+// The recording, from whichever document still holds it. A recording stays
+// armed across navigations, so the live one usually answers; the carry covers
+// the case where the tab has moved on to a document that hasn't loaded the hook.
 export async function stopRecording() {
   const r = await evalInPage('window.__baton && window.__baton.stopRecording ? window.__baton.stopRecording() : null').catch(() => null);
   if (r) return r;
-  return evalInPage(`(() => {
-    const raw = sessionStorage.getItem('__baton_rec_rescue');
-    if (!raw) return null;
+  const carried = await evalInPage(`(() => {
     window.__batonBypass = true;
-    try { sessionStorage.removeItem('__baton_rec_rescue'); } finally { window.__batonBypass = false; }
-    return JSON.parse(raw);
+    try {
+      const raw = sessionStorage.getItem('__baton_rec_carry') || sessionStorage.getItem('__baton_rec_rescue');
+      sessionStorage.removeItem('__baton_rec_carry');
+      sessionStorage.removeItem('__baton_rec_rescue');
+      sessionStorage.removeItem('__baton_boot');
+      return raw ? JSON.parse(raw) : null;
+    } catch {
+      return null;
+    } finally {
+      window.__batonBypass = false;
+    }
+  })()`).catch(() => null);
+  return carried;
+}
+
+// Belt and braces: never leave a tab armed to record after the panel gave up.
+export async function disarmRecording() {
+  await evalInPage(`(() => {
+    window.__batonBypass = true;
+    try {
+      if (window.__baton && window.__baton.disarmRecording) window.__baton.disarmRecording();
+      sessionStorage.removeItem('__baton_boot');
+      sessionStorage.removeItem('__baton_rec_carry');
+    } catch {
+      /* storage blocked */
+    } finally {
+      window.__batonBypass = false;
+    }
+    return true;
   })()`).catch(() => null);
 }
 

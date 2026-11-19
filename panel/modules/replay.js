@@ -287,7 +287,7 @@ export function mountReplay(container) {
     h(
       'p',
       { class: 'muted small' },
-      'How it works: replays restore the starting storage and cookies, serve every API response from the recording, pin the clock and random numbers, then repeat your clicks and typing. Minimize uses delta debugging to find the fewest steps that still cause the error. Limits: one page load per session (a full navigation ends it), no WebSockets or Web Workers, and secret fields (passwords) aren’t recorded.',
+      'How it works: replays restore the starting storage and cookies, serve every API response from the recording, pin the clock and random numbers, then repeat your clicks and typing. Minimize uses delta debugging to find the fewest steps that still cause the error. Recording follows the page across redirects and navigations. Limits: no WebSockets or Web Workers, nothing inside iframes, and secret fields (passwords) aren’t recorded.',
     ),
   );
   renderRec();

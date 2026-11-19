@@ -65,7 +65,7 @@ popup/, recorder/                toolbar popup (links), screen recorder window
 
 ## Record & replay notes
 
-- A session covers one page load; a full navigation ends the recording (SPA route changes are fine).
+- A recording keeps going across redirects and full navigations: each document hands the session to the next one, so an app that redirects on load (auth gates, locale or trailing-slash routing) records fine. Replay still starts from the first page it saw.
 - Not covered: WebSockets, Web Workers, server-side state, synchronous XHR, and password/secret fields (not recorded; the restored storage/cookies usually keep you logged in).
 - Exports follow **Mask secrets**: tokens in storage and auth cookies are redacted. If an app checks tokens locally, export with Mask secrets off and share only with your team.
 - "Offline" replay blocks requests that weren't recorded; otherwise they go to the network.

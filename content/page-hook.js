@@ -17,12 +17,19 @@
   const rawRemove = SPx.removeItem;
   const rawClear = SPx.clear;
   const rawKey = SPx.key;
+  const CARRY_KEY = '__baton_rec_carry';
+  const ARMED_MAX_MS = 2 * 60 * 60 * 1000; // a forgotten recording shouldn't arm forever
   let BOOT = null;
   try {
     const raw = rawGet.call(window.sessionStorage, '__baton_boot');
     if (raw) {
       BOOT = JSON.parse(raw);
-      rawRemove.call(window.sessionStorage, '__baton_boot');
+      // A replay boot is one-shot. A recording stays armed, so it survives a
+      // redirect or a full navigation instead of dying on the next document.
+      if (BOOT.mode !== 'record' || (BOOT.armedAt && Date.now() - BOOT.armedAt > ARMED_MAX_MS)) {
+        rawRemove.call(window.sessionStorage, '__baton_boot');
+        if (BOOT.mode === 'record') BOOT = null;
+      }
     }
   } catch {
     BOOT = null;
@@ -63,7 +70,22 @@
 
   if (BOOT && BOOT.mode === 'record') {
     Math.random = prng(BOOT.seed);
-    REC = { id: BOOT.id, seed: BOOT.seed, startedAt: realNow(), url: location.href, title: '', storage: snapshotStorage(), requests: [], actions: [], randoms: [], uuids: [], errors: [], bytes: 0, truncated: false, ended: null };
+    // Pick up where the previous document left off, so a redirect mid-session
+    // doesn't throw the recording away. The first document's url and storage
+    // are the ones a replay has to start from, so the carry keeps them.
+    const carried = (() => {
+      try {
+        const raw = rawGet.call(window.sessionStorage, CARRY_KEY);
+        if (!raw) return null;
+        const c = JSON.parse(raw);
+        return c && c.id === BOOT.id ? c : null;
+      } catch {
+        return null;
+      }
+    })();
+    REC = carried
+      ? { ...carried, ended: null, endedAt: null, carried: (carried.carried || 0) + 1 }
+      : { id: BOOT.id, seed: BOOT.seed, startedAt: realNow(), url: location.href, title: '', storage: snapshotStorage(), requests: [], actions: [], randoms: [], uuids: [], errors: [], bytes: 0, truncated: false, carried: 0, ended: null };
     crypto.getRandomValues = function (arr) {
       const r = oGRV(arr);
       if (REC && REC.randoms.length < 5000) REC.randoms.push(Array.from(arr));
@@ -76,6 +98,15 @@
         return u;
       };
     }
+    const disarm = () => {
+      try {
+        rawRemove.call(window.sessionStorage, '__baton_boot');
+        rawRemove.call(window.sessionStorage, CARRY_KEY);
+      } catch {
+        /* storage blocked */
+      }
+    };
+    B.disarmRecording = disarm;
     B.stopRecording = () => {
       const r = REC;
       if (!r) return null;
@@ -83,19 +114,25 @@
       r.ended = r.ended || 'stopped';
       r.endedAt = realNow();
       r.title = document.title;
+      disarm();
       return r;
     };
-    // A full page navigation ends the recording; keep what we have for the panel.
+    // Hand the recording to the next document. sessionStorage is only a few MB,
+    // so shed bodies, then requests, rather than losing the session outright.
     window.addEventListener('pagehide', () => {
       if (!REC) return;
       const r = { ...REC, ended: 'navigation', endedAt: realNow(), title: document.title, nextUrl: '' };
-      try {
-        rawSet.call(window.sessionStorage, '__baton_rec_rescue', JSON.stringify(r));
-      } catch {
+      const attempts = [
+        r,
+        { ...r, truncated: true, requests: r.requests.map((q) => ({ ...q, body: null, dropped: true })) },
+        { ...r, truncated: true, requests: [], randoms: [], uuids: [] },
+      ];
+      for (const attempt of attempts) {
         try {
-          rawSet.call(window.sessionStorage, '__baton_rec_rescue', JSON.stringify({ ...r, requests: r.requests.map((q) => ({ ...q, body: null, dropped: true })) }));
+          rawSet.call(window.sessionStorage, CARRY_KEY, JSON.stringify(attempt));
+          return;
         } catch {
-          /* too big even without bodies */
+          /* too big: try a leaner one */
         }
       }
     });
